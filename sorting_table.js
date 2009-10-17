@@ -28,7 +28,8 @@ var SortingTable = new Class({
     onSorted: $empty,
     dont_sort_class: 'nosort',
     forward_sort_class: 'forward_sort',
-    reverse_sort_class: 'reverse_sort'
+    reverse_sort_class: 'reverse_sort',
+    alternate_sort_attribute: 'alt'
   },
 
   initialize: function( table, options ) {
@@ -89,8 +90,16 @@ var SortingTable = new Class({
         this.conversion_function = header.retrieve('conversion_function');
       } else {
         this.conversion_function = false;
+        this.sort_attribute      = null;
         rows.some(function(row){
-          var to_match = $(row.row.getElementsByTagName('td')[this.sort_column]).get('text');
+          if (null == this.sort_attribute) {
+            if ($(row.row.getElementsByTagName('td')[this.sort_column]).get(this.options.alternate_sort_attribute))
+              this.sort_attribute = this.options.alternate_sort_attribute;
+            else
+              this.sort_attribute = 'text';
+          }
+
+          var to_match = $(row.row.getElementsByTagName('td')[this.sort_column]).get(this.sort_attribute);
           if (to_match == '') return false;
           this.conversions.some(function(conversion){
             if (conversion.matcher.test( to_match )){
@@ -104,10 +113,11 @@ var SortingTable = new Class({
         }, this);
         header.store('conversion_function', this.conversion_function );
         header.store('conversion_matcher', this.conversion_matcher );
+        header.store('sort_attribute', this.sort_attribute);
       }
       header.addClass( this.options.forward_sort_class );
       rows.each(function(row){
-        var compare_value = this.conversion_function( row );
+        var compare_value = this.conversion_function( row, header );
         row.toString = function(){
           return compare_value;
         };
@@ -138,8 +148,8 @@ var SortingTable = new Class({
     this.conversions = $A([
       // 1.75 MB, 301 GB, 34 KB, 8 TB
       { matcher: /([0-9.]{1,8}).*([KMGT]{1})B/,
-        conversion_function: function( row ) {
-          var cell = $(row.row.getElementsByTagName('td')[this.sort_column]).get('text');
+        conversion_function: function( row, header ) {
+          var cell = $(row.row.getElementsByTagName('td')[this.sort_column]).get(header.retrieve('sort_attribute'));
           cell = this.conversion_matcher.exec( cell );
           if (!cell) { return '0' }
           if (cell[2] == 'M') {
@@ -164,8 +174,8 @@ var SortingTable = new Class({
       },
       // 1 day ago, 4 days ago, 38 years ago, 1 month ago
       { matcher: /(\d{1,2}) (.{3,6}) ago/,
-        conversion_function: function( row ) {
-          var cell = $(row.row.getElementsByTagName('td')[this.sort_column]).get('text');
+        conversion_function: function( row, header ) {
+          var cell = $(row.row.getElementsByTagName('td')[this.sort_column]).get(header.retrieve('sort_attribute'));
           cell = this.conversion_matcher.exec( cell );
           if (!cell) { return '0' }
           var sort_val;
@@ -181,8 +191,8 @@ var SortingTable = new Class({
       },
       // Currency, or floating point with precision up to .00
       { matcher:  /^[^\d]?((\d+|,\d{3})*(\.\d{1,2})?)$/,
-        conversion_function: function( row ) {
-          var cell = $(row.row.getElementsByTagName('td')[this.sort_column]).get('text');
+        conversion_function: function( row, header ) {
+          var cell = $(row.row.getElementsByTagName('td')[this.sort_column]).get(header.retrieve('sort_attribute'));
           cell = parseFloat(cell.replace(/^[^\d]/, "").replace(/,/g, ""));
           if (isNaN(cell)) { cell = 0; }
           cell = Math.round((cell * 100)).toString();
@@ -191,8 +201,8 @@ var SortingTable = new Class({
       },
       // YYYY-MM-DD, YYYY-m-d
       { matcher: /(\d{4})-(\d{1,2})-(\d{1,2})/,
-        conversion_function: function( row ) {
-          var cell = $(row.row.getElementsByTagName('td')[this.sort_column]).get('text');
+        conversion_function: function( row, header ) {
+          var cell = $(row.row.getElementsByTagName('td')[this.sort_column]).get(header.retrieve('sort_attribute'));
           cell = this.conversion_matcher.exec( cell );
           return cell[1]+
                  '00'.substr(0,2-cell[2].length).concat(cell[2])+
@@ -201,15 +211,15 @@ var SortingTable = new Class({
       },
       // Numbers
       { matcher: /^\d+$/,
-        conversion_function: function( row ) {
-          var cell = $(row.row.getElementsByTagName('td')[this.sort_column]).get('text');
+        conversion_function: function( row, header ) {
+          var cell = $(row.row.getElementsByTagName('td')[this.sort_column]).get(header.retrieve('sort_attribute'));
           return '00000000000000000000000000000000'.substr(0,32-cell.length).concat(cell);
         }
       },
       // Fallback 
       { matcher: /.*/,
-        conversion_function: function( row ) {
-          return $(row.row.getElementsByTagName('td')[this.sort_column]).get('text');
+        conversion_function: function( row, header ) {
+          return $(row.row.getElementsByTagName('td')[this.sort_column]).get(header.retrieve('sort_attribute'));
         }
       }
     ]);
